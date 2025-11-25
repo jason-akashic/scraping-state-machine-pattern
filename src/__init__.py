@@ -13,6 +13,7 @@ from .state_detector import (
     TextContentDetector,
     CompositeDetector,
     CascadeDetector,
+    CascadingStateDetector,  # Alias for CascadeDetector
 )
 from .cascade import CascadeExecutor, CascadeSelector, SelectorType, create_cascade
 
@@ -24,6 +25,7 @@ __all__ = [
     "TextContentDetector",
     "CompositeDetector",
     "CascadeDetector",
+    "CascadingStateDetector",
     "CascadeExecutor",
     "CascadeSelector",
     "SelectorType",

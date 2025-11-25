@@ -197,10 +197,31 @@ class CompositeDetector(StateDetector):
     """
     Combines multiple detectors with AND/OR logic.
     
+    **High-confidence detection**: All detectors run, results combined with AND/OR.
+    Use when you need multiple signals to confirm state (anti-false-positive).
+    
+    **Use CompositeDetector when:**
+    - You need corroborating evidence (e.g., "URL contains /checkout AND cart icon visible")
+    - Detection costs are similar
+    - Dealing with ambiguous pages that might share patterns
+    - False positives are costly
+    
+    **Use CascadeDetector when:**
+    - Detection methods have different costs and you want cost optimization
+    - A single positive signal is sufficient
+    - You want to fail fast
+    
     Example:
+        # High-confidence: need both signals
         detector = CompositeDetector(
             [url_detector, dom_detector],
-            logic='AND'
+            logic='AND'  # Both must match
+        )
+        
+        # Any signal is enough
+        detector = CompositeDetector(
+            [url_detector, dom_detector],
+            logic='OR'  # Any one matches
         )
     """
     
@@ -241,7 +262,21 @@ class CascadeDetector(StateDetector):
     """
     Cascading state detector that tries multiple detection methods in order.
     
-    Tries detectors in order of reliability (most likely to succeed first):
+    **Cost-optimized detection**: Stops at the first detector that succeeds with
+    sufficient confidence, ordered by cost/reliability (cheapest first).
+    
+    **Use CascadeDetector when:**
+    - Detection methods have significantly different costs (URL ~0ms, DOM ~10ms, OCR ~500ms)
+    - A single positive signal is sufficient confidence
+    - You want to fail fast on obvious non-matches
+    - Cost optimization matters (e.g., scraping at scale)
+    
+    **Use CompositeDetector when:**
+    - You need corroborating evidence (anti-false-positive)
+    - Detection costs are similar
+    - Dealing with ambiguous pages (e.g., login vs. signup share URL patterns)
+    
+    Tries detectors in order of cost/reliability (cheapest, most reliable first):
     1. DOM element detection (most reliable - checks actual page structure)
     2. URL pattern matching (fast, reliable if URL is stable)
     3. Text content matching (less reliable, slower, prone to false positives)
@@ -252,10 +287,10 @@ class CascadeDetector(StateDetector):
     
     Example:
         detector = CascadeDetector([
-            DOMElementDetector(["//form[@id='login']"]),  # Most reliable: page structure
-            URLPatternDetector(["/login"]),                # Fast fallback: URL
-            TextContentDetector(["Sign in"]),              # Last resort: text
-        ])
+            URLPatternDetector(["/login"]),                # Fast, cheap - try first
+            DOMElementDetector(["//form[@id='login']"]),  # Medium cost
+            TextContentDetector(["Sign in"]),              # Slower
+        ], min_confidence=0.7)
     """
     
     def __init__(self, detectors: List[StateDetector], min_confidence: float = 0.5):
@@ -310,5 +345,9 @@ class CascadeDetector(StateDetector):
             best_result.reasoning = f"Cascade: All {len(self.detectors)} detectors failed. Best: {best_result.reasoning}"
         
         return best_result
+
+
+# Alias for clarity (CascadingStateDetector = CascadeDetector)
+CascadingStateDetector = CascadeDetector
 
 
