@@ -1,0 +1,14 @@
+# Requirements for Scraping State Machine Pattern
+#
+# Note: This is a conceptual design pattern repository. The code examples
+# are illustrative and do not require external dependencies for the core
+# pattern demonstration.
+#
+# For production implementations, you would typically need:
+# - selenium or playwright (browser automation)
+# - Optional: pytesseract (for visual/OCR-based detection)
+# - Optional: pillow (for image processing if using visual detection)
+
+# No required dependencies for conceptual code
+# All examples use standard library only
+

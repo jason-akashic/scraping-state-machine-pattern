@@ -115,9 +115,18 @@ class CascadeExecutor:
             return None
         
         elif selector.selector_type == SelectorType.VISUAL:
-            # Visual detection: screenshot + OCR (conceptual)
-            # In production, this would use OCR libraries
-            # For now, return None (not implemented in example)
+            # Visual detection: screenshot + OCR or ML-based element detection
+            #
+            # This is an extension point for production implementations.
+            # Visual detection would typically involve:
+            #   1. Taking a screenshot of the page/element
+            #   2. Using OCR (e.g., pytesseract, EasyOCR) to extract text
+            #   3. Or using ML-based element detection (e.g., computer vision models)
+            #   4. Matching against expected visual patterns
+            #
+            # This is intentionally not implemented here to keep the pattern
+            # zero-dependency and focused on architecture, not implementation details.
+            # Production implementations would add this based on their specific needs.
             return None
         
         return None

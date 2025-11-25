@@ -19,7 +19,7 @@ not to provide a working LinkedIn scraper.
 
 from typing import Dict, Any, Optional
 from src.base_state import BaseState
-from src.state_detector import URLPatternDetector, DOMElementDetector, CompositeDetector
+from src.state_detector import URLPatternDetector, DOMElementDetector, TextContentDetector, CascadeDetector
 from src.cascade import CascadeExecutor, CascadeSelector, SelectorType
 
 
@@ -34,13 +34,19 @@ class LinkedInLoginState(BaseState):
     
     def __init__(self):
         super().__init__("LinkedInLoginState")
-        # Detect by URL or form presence
-        url_detector = URLPatternDetector(["/login", "/uas/login"])
+        # Cascade detection: DOM (most reliable) → URL → text
         form_detector = DOMElementDetector(["//form[@id='login-form']"])
-        self.detector = CompositeDetector([url_detector, form_detector], logic='OR')
+        url_detector = URLPatternDetector(["/login", "/uas/login"])
+        text_detector = TextContentDetector(["Sign in", "Welcome back"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            form_detector,     # Most reliable: actual page structure
+            url_detector,      # Fast fallback: URL match
+            text_detector,     # Last resort: text content
+        ], min_confidence=0.7)
     
     def detect(self, context: Dict[str, Any]) -> bool:
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -75,7 +81,15 @@ class LinkedInSearchState(BaseState):
     
     def __init__(self):
         super().__init__("LinkedInSearchState")
-        self.detector = URLPatternDetector(["/search"])
+        # Cascade detection: DOM → URL → text
+        search_input_detector = DOMElementDetector(["//input[@placeholder='Search' and @role='combobox']"])
+        url_detector = URLPatternDetector(["/search"])
+        text_detector = TextContentDetector(["Search", "Find people"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            search_input_detector,     # Most reliable: actual page structure
+            url_detector,              # Fast fallback: URL
+            text_detector,             # Last resort: text
+        ], min_confidence=0.7)
         
         # Cascade for search input field
         self.search_input_cascade = CascadeExecutor([
@@ -92,7 +106,8 @@ class LinkedInSearchState(BaseState):
         ])
     
     def detect(self, context: Dict[str, Any]) -> bool:
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Enter search query and submit."""
@@ -115,7 +130,15 @@ class LinkedInResultsState(BaseState):
     
     def __init__(self):
         super().__init__("LinkedInResultsState")
-        self.detector = URLPatternDetector(["/search/results"])
+        # Cascade detection: DOM → URL → text
+        results_detector = DOMElementDetector(["//div[@class='search-result']", "//ul[contains(@class, 'results')]"])
+        url_detector = URLPatternDetector(["/search/results"])
+        text_detector = TextContentDetector(["Search results", "People"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            results_detector,      # Most reliable: actual page structure
+            url_detector,          # Fast fallback: URL
+            text_detector,         # Last resort: text
+        ], min_confidence=0.7)
         
         # Cascade for finding profile result links
         self.profile_link_cascade = CascadeExecutor([
@@ -151,7 +174,8 @@ class LinkedInResultsState(BaseState):
         ])
     
     def detect(self, context: Dict[str, Any]) -> bool:
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract profile links from results."""
@@ -194,7 +218,15 @@ class LinkedInProfileState(BaseState):
     
     def __init__(self):
         super().__init__("LinkedInProfileState")
-        self.detector = URLPatternDetector(["/in/"], use_regex=True)
+        # Cascade detection: DOM → URL → text
+        profile_detector = DOMElementDetector(["//div[@class='pv-text-details__left-panel']", "//section[contains(@class, 'profile')]"])
+        url_detector = URLPatternDetector(["/in/"], use_regex=True)
+        text_detector = TextContentDetector(["Profile", "Experience", "Education"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            profile_detector,      # Most reliable: actual page structure
+            url_detector,          # Fast fallback: URL pattern
+            text_detector,         # Last resort: text content
+        ], min_confidence=0.7)
         
         # Cascade for profile name
         self.name_cascade = CascadeExecutor([
@@ -230,7 +262,8 @@ class LinkedInProfileState(BaseState):
         ])
     
     def detect(self, context: Dict[str, Any]) -> bool:
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract profile data using cascades."""

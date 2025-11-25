@@ -22,7 +22,7 @@ The goal is to demonstrate understanding of the pattern, not provide a working s
 
 from typing import Dict, Any, Optional
 from src.base_state import BaseState
-from src.state_detector import URLPatternDetector, CompositeDetector
+from src.state_detector import URLPatternDetector, DOMElementDetector, TextContentDetector, CascadeDetector
 from src.cascade import CascadeExecutor, CascadeSelector, SelectorType
 
 
@@ -38,12 +38,20 @@ class LoginState(BaseState):
     
     def __init__(self):
         super().__init__("LoginState")
-        # Detect login state by URL pattern
-        self.detector = URLPatternDetector(["/login", "/sign-in"])
+        # Cascade detection: DOM (most reliable) → URL → text
+        form_detector = DOMElementDetector(["//form[contains(@action, 'login')]"])
+        url_detector = URLPatternDetector(["/login", "/sign-in"])
+        text_detector = TextContentDetector(["Login", "Sign in"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            form_detector,     # Most reliable: actual page structure
+            url_detector,      # Fast fallback: URL pattern
+            text_detector,     # Last resort: text content
+        ], min_confidence=0.7)
     
     def detect(self, context: Dict[str, Any]) -> bool:
         """Check if we're on the login page."""
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -77,10 +85,19 @@ class SearchState(BaseState):
     
     def __init__(self):
         super().__init__("SearchState")
-        self.detector = URLPatternDetector(["/search"])
+        # Cascade detection for search page: DOM → URL → text
+        search_input_detector = DOMElementDetector(["//input[@type='search']", "//input[@placeholder*='Search']"])
+        url_detector = URLPatternDetector(["/search"])
+        text_detector = TextContentDetector(["Search", "Find"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            search_input_detector,     # Most reliable: actual page structure
+            url_detector,              # Fast fallback: URL
+            text_detector,             # Last resort: text
+        ], min_confidence=0.7)
     
     def detect(self, context: Dict[str, Any]) -> bool:
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Execute search action."""
@@ -104,7 +121,15 @@ class ResultsState(BaseState):
     
     def __init__(self):
         super().__init__("ResultsState")
-        self.detector = URLPatternDetector(["/search/results"])
+        # Cascade detection for results page: DOM → URL → text
+        results_detector = DOMElementDetector(["//div[@class='results']", "//ul[@class='result-list']"])
+        url_detector = URLPatternDetector(["/search/results"])
+        text_detector = TextContentDetector(["Results", "Found"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            results_detector,      # Most reliable: actual page structure
+            url_detector,          # Fast fallback: URL
+            text_detector,         # Last resort: text
+        ], min_confidence=0.7)
         
         # Create cascade for finding result links
         # Primary: specific selector
@@ -129,7 +154,8 @@ class ResultsState(BaseState):
         ])
     
     def detect(self, context: Dict[str, Any]) -> bool:
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract result links using cascade."""
@@ -157,10 +183,19 @@ class ProfileState(BaseState):
     
     def __init__(self):
         super().__init__("ProfileState")
-        self.detector = URLPatternDetector(["/profile/", "/in/"])
+        # Cascade detection for profile page: DOM → URL → text
+        profile_detector = DOMElementDetector(["//div[@class='profile']", "//section[contains(@class, 'profile')]"])
+        url_detector = URLPatternDetector(["/profile/", "/in/"], use_regex=True)
+        text_detector = TextContentDetector(["Profile", "About"], case_sensitive=False)
+        self.detector = CascadeDetector([
+            profile_detector,      # Most reliable: actual page structure
+            url_detector,          # Fast fallback: URL pattern
+            text_detector,         # Last resort: text
+        ], min_confidence=0.7)
     
     def detect(self, context: Dict[str, Any]) -> bool:
-        return self.detector.detect(context)
+        result = self.detector.detect(context)
+        return result.detected
     
     def execute(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract profile data."""
