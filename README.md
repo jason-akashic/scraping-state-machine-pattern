@@ -36,7 +36,19 @@ States can detect their own context through:
 - Text content matching
 - Visual indicators (screenshots/OCR)
 
-### 4. Adaptive Behavior Scaling
+### 4. Network Rotation Strategy
+
+The pattern supports **proxy pool management** and intelligent rotation:
+
+- **Proxy Pool** — Maintains multiple proxy configurations with per-proxy success tracking
+- **Automatic Rotation** — Rotates on rate limits, CAPTCHAs, IP blocks, or scheduled intervals
+- **Quarantine** — Temporarily removes failed proxies from the pool
+- **Success-Based Selection** — Chooses proxies weighted by success rates
+- **Integration with Behavior Scaling** — Network failures (CAPTCHA, blocks) trigger both proxy rotation and behavior escalation to more human-like patterns
+
+**Key insight:** Proxy rotation and behavior scaling work together. A CAPTCHA or IP block signals both a proxy switch AND an escalation to more stealthy behavior.
+
+### 5. Adaptive Behavior Scaling
 
 The pattern supports **adaptive behavior scaling** that dynamically adjusts between machine-like and human-like execution based on success metrics:
 

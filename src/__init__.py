@@ -23,6 +23,11 @@ from .behavior import (
     HUMAN_LIKE_PROFILE,
 )
 from .cascade_metrics import CascadeMetrics
+from .network import (
+    ProxyConfig,
+    NetworkRotator,
+    RotationTrigger,
+)
 
 __all__ = [
     "BaseState",
@@ -42,5 +47,8 @@ __all__ = [
     "MACHINE_LIKE_PROFILE",
     "HUMAN_LIKE_PROFILE",
     "CascadeMetrics",
+    "ProxyConfig",
+    "NetworkRotator",
+    "RotationTrigger",
 ]
 

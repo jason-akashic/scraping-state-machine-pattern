@@ -144,7 +144,7 @@ class BehaviorScaler:
         )
     
     def escalate(self, success_rate: float, cascade_metrics: Optional[Dict[str, float]] = None,
-                 adjustment_rate: float = 0.1) -> BehaviorProfile:
+                 network_metrics: Optional[Dict] = None, adjustment_rate: float = 0.1) -> BehaviorProfile:
         """
         Adjust behavior level based on success metrics and cascade performance.
         
@@ -157,6 +157,11 @@ class BehaviorScaler:
                 - 'text_fallback_rate': Rate of falling back to text selectors (0.0-1.0)
                 - 'visual_fallback_rate': Rate of falling back to visual selectors (0.0-1.0)
                 - 'primary_success_rate': Success rate of primary selectors (0.0-1.0)
+            network_metrics: Optional dict with network/proxy metrics:
+                - 'overall_success_rate': Overall proxy success rate (0.0-1.0)
+                - 'recent_captchas': Number of recent CAPTCHA hits
+                - 'recent_blocks': Number of recent IP blocks
+                - 'recent_rate_limits': Number of recent rate limits
             adjustment_rate: How much to adjust level per call (default 0.1)
         
         Returns:
@@ -165,10 +170,11 @@ class BehaviorScaler:
         Logic:
             - High success (>0.95) + primary selectors working → decrease humanness (faster)
             - Frequent text/visual fallbacks → increase humanness (more stealth)
+            - Network failures (CAPTCHA, blocks) → increase humanness (more stealth)
             - Medium success (0.7-0.95) → maintain current
             - Low success (<0.7) → increase humanness (more stealth)
         """
-        # Adjust success rate based on cascade position
+        # Adjust success rate based on cascade position and network failures
         adjusted_success_rate = success_rate
         
         if cascade_metrics:
@@ -199,6 +205,27 @@ class BehaviorScaler:
             # If average position is high (frequently using fallbacks), penalize
             if avg_position > 0.5:  # More than halfway through cascade
                 adjusted_success_rate = success_rate * (1.0 - avg_position * 0.3)
+        
+        # Adjust based on network/proxy failures
+        if network_metrics:
+            network_success_rate = network_metrics.get('overall_success_rate', 1.0)
+            recent_captchas = network_metrics.get('recent_captchas', 0)
+            recent_blocks = network_metrics.get('recent_blocks', 0)
+            recent_rate_limits = network_metrics.get('recent_rate_limits', 0)
+            
+            # Network failures are strong signals - penalize significantly
+            if network_success_rate < 0.8:
+                adjusted_success_rate = min(adjusted_success_rate, network_success_rate * 0.9)
+            
+            # CAPTCHA or block = immediate escalation signal
+            if recent_captchas > 0 or recent_blocks > 0:
+                # Force escalation to more human-like
+                self.current_level = min(1.0, self.current_level + adjustment_rate * 2)
+                return self.scale(self.current_level)
+            
+            # Rate limits = moderate escalation
+            if recent_rate_limits > 2:  # Multiple rate limits
+                adjusted_success_rate = adjusted_success_rate * 0.85
         
         # Use adjusted success rate for escalation
         if adjusted_success_rate > 0.95:
