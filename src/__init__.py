@@ -16,6 +16,12 @@ from .state_detector import (
     CascadingStateDetector,  # Alias for CascadeDetector
 )
 from .cascade import CascadeExecutor, CascadeSelector, SelectorType, create_cascade
+from .behavior import (
+    BehaviorProfile,
+    BehaviorScaler,
+    MACHINE_LIKE_PROFILE,
+    HUMAN_LIKE_PROFILE,
+)
 
 __all__ = [
     "BaseState",
@@ -30,5 +36,9 @@ __all__ = [
     "CascadeSelector",
     "SelectorType",
     "create_cascade",
+    "BehaviorProfile",
+    "BehaviorScaler",
+    "MACHINE_LIKE_PROFILE",
+    "HUMAN_LIKE_PROFILE",
 ]
 

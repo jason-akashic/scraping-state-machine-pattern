@@ -36,14 +36,44 @@ States can detect their own context through:
 - Text content matching
 - Visual indicators (screenshots/OCR)
 
-### 4. Adaptive Behavior Strategy
+### 4. Adaptive Behavior Scaling
 
-The pattern supports **adaptive behavior** that bounces between machine-like and human-like execution:
+The pattern supports **adaptive behavior scaling** that dynamically adjusts between machine-like and human-like execution based on success metrics:
 
-- **Machine-like mode** — Fast, efficient execution when no bot detection is present (no unnecessary delays or movements)
-- **Human-like mode** — Realistic delays, mouse movements, scroll patterns, and typing cadence when bot detection is detected
+- **Machine-like mode** (level 0.0) — Fast, efficient execution when no bot detection is present
+  - Minimal delays (0.0-0.1s)
+  - No mouse movement simulation
+  - No scroll behavior
+  - Instant text input
+  - No randomness (jitter = 0.0)
 
-**Key insight:** There's negative value in emulating human behavior on sites that aren't doing any bot detection. The pattern adapts based on detection signals, optimizing for both speed (when safe) and stealth (when needed).
+- **Human-like mode** (level 1.0) — Realistic behavior when bot detection is detected
+  - Realistic delays (1.0-3.0s)
+  - Mouse movement simulation
+  - Natural scroll patterns
+  - Human typing cadence (0.05-0.15s per keystroke)
+  - Randomness (jitter = 0.3)
+
+**Behavior Scaling Based on Success Metrics:**
+
+The `BehaviorScaler` automatically adjusts behavior level based on success rate:
+
+```python
+scaler = BehaviorScaler(MACHINE_LIKE_PROFILE, HUMAN_LIKE_PROFILE)
+
+# High success rate (>0.95) → decrease humanness (faster)
+profile = scaler.escalate(success_rate=0.98)  # Moves toward machine-like
+
+# Medium success rate (0.7-0.95) → maintain current
+profile = scaler.escalate(success_rate=0.85)  # Stays at current level
+
+# Low success rate (<0.7) → increase humanness (more stealth)
+profile = scaler.escalate(success_rate=0.60)  # Moves toward human-like
+```
+
+**Key insight:** There's negative value in emulating human behavior on sites that aren't doing any bot detection. The pattern adapts based on success metrics, optimizing for both speed (when safe) and stealth (when needed).
+
+See [Behavior Scaling Documentation](docs/behavior-scaling.md) for detailed examples and thresholds.
 
 ## Benefits
 

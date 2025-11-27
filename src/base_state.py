@@ -74,7 +74,13 @@ class BaseState(ABC):
         This is where the actual scraping, navigation, or interaction happens.
         
         Args:
-            context: Context object
+            context: Context object containing:
+                - browser/driver: Browser automation instance
+                - behavior_profile: Optional BehaviorProfile for adaptive behavior
+                - session_data: Cookies, tokens, authentication
+                - scraped_data: Accumulated results
+                - configuration: Rate limits, timeouts, selectors
+                - state_history: Previous states for backtracking
             
         Returns:
             Optional data extracted or modified by this state
