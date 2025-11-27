@@ -81,7 +81,7 @@ profile = scaler.scale(1.0)  # Slow, full mouse simulation
 
 ### Success-Based Escalation
 
-The scaler automatically adjusts behavior based on success metrics:
+The scaler automatically adjusts behavior based on success metrics and cascade performance:
 
 ```python
 # High success rate (>0.95) → decrease humanness (faster)
@@ -96,6 +96,39 @@ profile = scaler.escalate(success_rate=0.85)
 profile = scaler.escalate(success_rate=0.60)
 # Result: Moves toward human-like (level increases)
 ```
+
+### Cascade-Aware Escalation
+
+Behavior scaling also considers cascade selector performance:
+
+```python
+from src.cascade_metrics import CascadeMetrics
+
+# Track cascade performance
+metrics = CascadeMetrics()
+
+# After each cascade execution:
+result = cascade.execute(context)
+if result:
+    element, position, selector_type = result
+    metrics.record_success(position, selector_type, len(cascade.selectors))
+else:
+    metrics.record_failure()
+
+# Get metrics for behavior scaling
+cascade_metrics = metrics.get_metrics()
+
+# Escalate with cascade awareness
+profile = scaler.escalate(
+    success_rate=0.85,
+    cascade_metrics=cascade_metrics
+)
+```
+
+**Cascade signals:**
+- **Primary selectors succeed** (position 0) → Site stable → Stay machine-like
+- **Frequent text/visual fallbacks** → Site changed or blocking → Escalate to human-like
+- **High average position** → Frequently using fallbacks → Increase stealth
 
 ## The Feedback Loop
 
@@ -122,32 +155,48 @@ profile = scaler.escalate(success_rate=0.60)
 
 ```python
 from src.behavior import BehaviorScaler, MACHINE_LIKE_PROFILE, HUMAN_LIKE_PROFILE
+from src.cascade_metrics import CascadeMetrics
 
-# Initialize scaler
+# Initialize scaler and metrics
 scaler = BehaviorScaler(MACHINE_LIKE_PROFILE, HUMAN_LIKE_PROFILE)
+metrics = CascadeMetrics()
 
 # Start machine-like
 context['behavior_profile'] = scaler.get_current_profile()  # Level 0.0
 
-# After 100 operations: 98% success rate
+# After 100 operations: 98% success rate, primary selectors working
+result = cascade.execute(context)
+if result:
+    element, position, selector_type = result
+    metrics.record_success(position, selector_type, len(cascade.selectors))
+
+cascade_metrics = metrics.get_metrics()
+# cascade_metrics = {'avg_position': 0.05, 'text_fallback_rate': 0.02, ...}
+
 success_rate = 0.98
-context['behavior_profile'] = scaler.escalate(success_rate)
-# Behavior stays machine-like (high success)
+context['behavior_profile'] = scaler.escalate(success_rate, cascade_metrics)
+# Behavior stays machine-like (high success + primary selectors working)
 
-# After 200 operations: 65% success rate (detection detected!)
+# After 200 operations: 65% success rate, frequent text fallbacks
+# (detection detected or site structure changed!)
+cascade_metrics = {'avg_position': 0.7, 'text_fallback_rate': 0.4, ...}
 success_rate = 0.65
-context['behavior_profile'] = scaler.escalate(success_rate)
-# Behavior escalates toward human-like (level increases)
+context['behavior_profile'] = scaler.escalate(success_rate, cascade_metrics)
+# Behavior escalates toward human-like (low success + frequent fallbacks)
 
-# After 300 operations: 92% success rate (human-like behavior working)
+# After 300 operations: 92% success rate, back to primary selectors
+# (human-like behavior working, site structure stable again)
+cascade_metrics = {'avg_position': 0.1, 'text_fallback_rate': 0.05, ...}
 success_rate = 0.92
-context['behavior_profile'] = scaler.escalate(success_rate)
-# Behavior maintains current level (medium success)
+context['behavior_profile'] = scaler.escalate(success_rate, cascade_metrics)
+# Behavior maintains current level (medium success + primary working)
 
-# After 400 operations: 99% success rate (site stopped checking)
+# After 400 operations: 99% success rate, all primary selectors
+# (site stopped checking or structure stabilized)
+cascade_metrics = {'avg_position': 0.0, 'text_fallback_rate': 0.0, ...}
 success_rate = 0.99
-context['behavior_profile'] = scaler.escalate(success_rate)
-# Behavior gradually returns to machine-like (level decreases)
+context['behavior_profile'] = scaler.escalate(success_rate, cascade_metrics)
+# Behavior gradually returns to machine-like (high success + all primary)
 ```
 
 ## Example Thresholds and Profiles
@@ -214,31 +263,52 @@ class LoginState(BaseState):
 
 ### State Machine Executor Integration
 
-The state machine executor should update behavior scaling based on operation results:
+The state machine executor should update behavior scaling based on operation results and cascade metrics:
 
 ```python
+from src.behavior import BehaviorScaler, MACHINE_LIKE_PROFILE, HUMAN_LIKE_PROFILE
+from src.cascade_metrics import CascadeMetrics
+
 class StateMachineExecutor:
     def __init__(self):
         self.scaler = BehaviorScaler(MACHINE_LIKE_PROFILE, HUMAN_LIKE_PROFILE)
         self.operation_results = []  # Track success/failure
+        self.cascade_metrics = CascadeMetrics()  # Track cascade performance
     
     def run(self):
         while self.current_state:
             # Get current behavior profile
             context['behavior_profile'] = self.scaler.get_current_profile()
             
-            # Execute state
+            # Execute state (which uses cascades internally)
             try:
                 result = self.current_state.execute(context)
                 self.operation_results.append(True)  # Success
+                
+                # If cascade was used, track its performance
+                # (States should record cascade results in context)
+                if 'cascade_result' in context:
+                    element, position, selector_type = context['cascade_result']
+                    self.cascade_metrics.record_success(
+                        position, selector_type, context.get('cascade_length', 1)
+                    )
             except Exception as e:
                 self.operation_results.append(False)  # Failure
+                self.cascade_metrics.record_failure()
             
-            # Update behavior scaling based on recent success rate
+            # Update behavior scaling based on recent success rate and cascade metrics
             if len(self.operation_results) >= 10:  # After 10 operations
                 recent_results = self.operation_results[-100:]  # Last 100
                 success_rate = sum(recent_results) / len(recent_results)
-                context['behavior_profile'] = self.scaler.escalate(success_rate)
+                
+                # Get cascade metrics
+                cascade_metrics_dict = self.cascade_metrics.get_metrics()
+                
+                # Escalate with cascade awareness
+                context['behavior_profile'] = self.scaler.escalate(
+                    success_rate,
+                    cascade_metrics=cascade_metrics_dict
+                )
 ```
 
 ## Performance Impact

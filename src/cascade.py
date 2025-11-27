@@ -58,7 +58,7 @@ class CascadeExecutor:
         """
         self.selectors = selectors
     
-    def execute(self, context: Dict[str, Any]) -> Optional[Any]:
+    def execute(self, context: Dict[str, Any]) -> Optional[Tuple[Any, int, SelectorType]]:
         """
         Execute cascade: try each selector until one succeeds.
         
@@ -66,17 +66,20 @@ class CascadeExecutor:
             context: Context object with browser/driver
             
         Returns:
-            Found element(s) or None if all selectors fail
+            Tuple of (element, selector_index, selector_type) if successful, None if all fail.
+            selector_index: 0 = primary selector, higher = fallback position
+            selector_type: Type of selector that succeeded
         """
         driver = context.get('driver')
         if not driver:
             return None
         
-        for selector in self.selectors:
+        for i, selector in enumerate(self.selectors):
             try:
                 result = self._try_selector(selector, context)
                 if result:
-                    return result
+                    # Return element, position, and selector type for metrics tracking
+                    return (result, i, selector.selector_type)
             except Exception as e:
                 # Log error but continue to next selector
                 continue

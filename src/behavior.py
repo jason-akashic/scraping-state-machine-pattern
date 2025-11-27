@@ -143,26 +143,58 @@ class BehaviorScaler:
             jitter=jitter
         )
     
-    def escalate(self, success_rate: float, adjustment_rate: float = 0.1) -> BehaviorProfile:
+    def escalate(self, success_rate: float, cascade_metrics: Optional[Dict[str, float]] = None,
+                 adjustment_rate: float = 0.1) -> BehaviorProfile:
         """
-        Adjust behavior level based on success metrics.
+        Adjust behavior level based on success metrics and cascade performance.
         
         Args:
             success_rate: Recent success rate (0.0-1.0)
+            cascade_metrics: Optional dict with cascade performance metrics:
+                - 'avg_position': Average cascade position (0.0 = primary, 1.0 = last)
+                - 'text_fallback_rate': Rate of falling back to text selectors (0.0-1.0)
+                - 'visual_fallback_rate': Rate of falling back to visual selectors (0.0-1.0)
+                - 'primary_success_rate': Success rate of primary selectors (0.0-1.0)
             adjustment_rate: How much to adjust level per call (default 0.1)
         
         Returns:
             Updated BehaviorProfile
         
         Logic:
-            - High success (>0.95) → decrease humanness (faster)
+            - High success (>0.95) + primary selectors working → decrease humanness (faster)
+            - Frequent text/visual fallbacks → increase humanness (more stealth)
             - Medium success (0.7-0.95) → maintain current
             - Low success (<0.7) → increase humanness (more stealth)
         """
-        if success_rate > 0.95:
+        # Adjust success rate based on cascade position
+        adjusted_success_rate = success_rate
+        
+        if cascade_metrics:
+            avg_position = cascade_metrics.get('avg_position', 0.0)
+            text_fallback_rate = cascade_metrics.get('text_fallback_rate', 0.0)
+            visual_fallback_rate = cascade_metrics.get('visual_fallback_rate', 0.0)
+            primary_success_rate = cascade_metrics.get('primary_success_rate', 1.0)
+            
+            # If we're frequently falling back to text/visual, that's a bad sign
+            # Penalize success rate (indicates site changes or blocking)
+            total_fallback_rate = text_fallback_rate + visual_fallback_rate
+            if total_fallback_rate > 0.2:  # More than 20% fallbacks
+                adjusted_success_rate = success_rate * (1.0 - total_fallback_rate * 0.4)
+            
+            # If primary selectors consistently work, boost success rate
+            # (indicates stable site structure, no detection)
+            if primary_success_rate > 0.9 and avg_position < 0.1:
+                adjusted_success_rate = min(1.0, success_rate * 1.1)
+            
+            # If average position is high (frequently using fallbacks), penalize
+            if avg_position > 0.5:  # More than halfway through cascade
+                adjusted_success_rate = success_rate * (1.0 - avg_position * 0.3)
+        
+        # Use adjusted success rate for escalation
+        if adjusted_success_rate > 0.95:
             # High success: decrease humanness (move toward machine-like)
             self.current_level = max(0.0, self.current_level - adjustment_rate)
-        elif success_rate < 0.7:
+        elif adjusted_success_rate < 0.7:
             # Low success: increase humanness (move toward human-like)
             self.current_level = min(1.0, self.current_level + adjustment_rate)
         # Medium success (0.7-0.95): maintain current level

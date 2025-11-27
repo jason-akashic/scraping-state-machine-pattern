@@ -22,6 +22,7 @@ from .behavior import (
     MACHINE_LIKE_PROFILE,
     HUMAN_LIKE_PROFILE,
 )
+from .cascade_metrics import CascadeMetrics
 
 __all__ = [
     "BaseState",
@@ -40,5 +41,6 @@ __all__ = [
     "BehaviorScaler",
     "MACHINE_LIKE_PROFILE",
     "HUMAN_LIKE_PROFILE",
+    "CascadeMetrics",
 ]
 

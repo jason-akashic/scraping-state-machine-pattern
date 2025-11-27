@@ -162,11 +162,15 @@ class ResultsState(BaseState):
         print(f"[{self.name}] Extracting results...")
         
         # Try cascade selectors
-        results = self.result_cascade.execute(context)
+        # In production, would unpack: element, position, selector_type = cascade.execute(context)
+        # and track metrics for behavior scaling
+        cascade_result = self.result_cascade.execute(context)
         
-        if results:
-            print(f"[{self.name}] Found {len(results) if isinstance(results, list) else 1} results")
-            return {"results": results}
+        if cascade_result:
+            element, position, selector_type = cascade_result
+            # In production, would record: metrics.record_success(position, selector_type, len(cascade.selectors))
+            print(f"[{self.name}] Found results using selector at position {position} ({selector_type.value})")
+            return {"results": element}
         else:
             print(f"[{self.name}] No results found")
             return None

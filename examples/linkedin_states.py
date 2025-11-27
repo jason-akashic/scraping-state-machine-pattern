@@ -182,9 +182,12 @@ class LinkedInResultsState(BaseState):
         print(f"[{self.name}] Extracting profile links...")
         
         # Use cascade to find profile links
-        links = self.profile_link_cascade.execute(context)
+        # In production, would unpack and track metrics
+        cascade_result = self.profile_link_cascade.execute(context)
         
-        if links:
+        if cascade_result:
+            links, position, selector_type = cascade_result
+            # In production: metrics.record_success(position, selector_type, len(cascade.selectors))
             # Extract hrefs (conceptual)
             profile_urls = []  # Would extract from link elements
             return {"profile_urls": profile_urls, "current_page": 1}
@@ -200,7 +203,8 @@ class LinkedInResultsState(BaseState):
             return "LinkedInProfileState"
         else:
             # Check for next page
-            has_next = self.next_page_cascade.execute(context) is not None
+            next_page_result = self.next_page_cascade.execute(context)
+            has_next = next_page_result is not None
             if has_next:
                 return "LinkedInResultsState"  # Stay in results, go to next page
             else:
@@ -270,10 +274,14 @@ class LinkedInProfileState(BaseState):
         print(f"[{self.name}] Extracting profile data...")
         
         # Use cascades to extract data
-        name_element = self.name_cascade.execute(context)
-        title_element = self.title_cascade.execute(context)
+        # In production, would unpack and track metrics
+        name_result = self.name_cascade.execute(context)
+        title_result = self.title_cascade.execute(context)
         
         # Conceptual: would extract text from elements
+        name_element = name_result[0] if name_result else None
+        title_element = title_result[0] if title_result else None
+        
         profile_data = {
             "name": "Extracted Name",  # Would come from name_element
             "title": "Extracted Title",  # Would come from title_element

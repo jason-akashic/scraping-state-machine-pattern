@@ -54,22 +54,41 @@ The pattern supports **adaptive behavior scaling** that dynamically adjusts betw
   - Human typing cadence (0.05-0.15s per keystroke)
   - Randomness (jitter = 0.3)
 
-**Behavior Scaling Based on Success Metrics:**
+**Behavior Scaling Based on Success Metrics and Cascade Performance:**
 
-The `BehaviorScaler` automatically adjusts behavior level based on success rate:
+The `BehaviorScaler` automatically adjusts behavior level based on success rate and cascade selector performance:
 
 ```python
+from src.behavior import BehaviorScaler, MACHINE_LIKE_PROFILE, HUMAN_LIKE_PROFILE
+from src.cascade_metrics import CascadeMetrics
+
 scaler = BehaviorScaler(MACHINE_LIKE_PROFILE, HUMAN_LIKE_PROFILE)
+metrics = CascadeMetrics()
 
-# High success rate (>0.95) → decrease humanness (faster)
-profile = scaler.escalate(success_rate=0.98)  # Moves toward machine-like
+# Track cascade performance
+result = cascade.execute(context)
+if result:
+    element, position, selector_type = result
+    metrics.record_success(position, selector_type, len(cascade.selectors))
 
-# Medium success rate (0.7-0.95) → maintain current
-profile = scaler.escalate(success_rate=0.85)  # Stays at current level
+# Get cascade metrics
+cascade_metrics = metrics.get_metrics()
+
+# High success rate (>0.95) + primary selectors → decrease humanness (faster)
+profile = scaler.escalate(success_rate=0.98, cascade_metrics=cascade_metrics)
+
+# Frequent text/visual fallbacks → increase humanness (more stealth)
+# (Even with medium success rate, fallbacks indicate site changes/blocking)
+profile = scaler.escalate(success_rate=0.85, cascade_metrics={
+    'text_fallback_rate': 0.4,  # 40% fallbacks
+    'avg_position': 0.7
+})
 
 # Low success rate (<0.7) → increase humanness (more stealth)
-profile = scaler.escalate(success_rate=0.60)  # Moves toward human-like
+profile = scaler.escalate(success_rate=0.60, cascade_metrics=cascade_metrics)
 ```
+
+**Key insight:** Cascade position is a strong signal. If primary selectors (XPath/CSS) consistently work, the site is stable and we can stay machine-like. If we're frequently falling back to text/visual selectors, that indicates site changes or bot detection, so we should escalate to human-like behavior.
 
 **Key insight:** There's negative value in emulating human behavior on sites that aren't doing any bot detection. The pattern adapts based on success metrics, optimizing for both speed (when safe) and stealth (when needed).
 
