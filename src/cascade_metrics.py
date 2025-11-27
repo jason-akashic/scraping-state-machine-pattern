@@ -23,6 +23,8 @@ class CascadeMetrics:
         self.total_attempts: int = 0
         self.primary_successes: int = 0  # Position 0 (primary selector)
         self.fallback_successes: int = 0  # Position > 0
+        self.xpath_successes: int = 0  # SelectorType.XPATH
+        self.css_successes: int = 0  # SelectorType.CSS
         self.text_fallbacks: int = 0  # SelectorType.TEXT
         self.visual_fallbacks: int = 0  # SelectorType.VISUAL
         self.position_sum: float = 0.0  # Sum of positions for average calculation
@@ -49,7 +51,12 @@ class CascadeMetrics:
         normalized_position = position / max(1, cascade_length - 1) if cascade_length > 1 else 0.0
         self.position_sum += normalized_position
         
-        if selector_type == SelectorType.TEXT:
+        # Track by selector type
+        if selector_type == SelectorType.XPATH:
+            self.xpath_successes += 1
+        elif selector_type == SelectorType.CSS:
+            self.css_successes += 1
+        elif selector_type == SelectorType.TEXT:
             self.text_fallbacks += 1
         elif selector_type == SelectorType.VISUAL:
             self.visual_fallbacks += 1
@@ -65,6 +72,8 @@ class CascadeMetrics:
         Returns:
             Dictionary with:
             - 'avg_position': Average cascade position (0.0 = primary, 1.0 = last)
+            - 'xpath_success_rate': Success rate of XPath selectors (0.0-1.0)
+            - 'css_success_rate': Success rate of CSS selectors (0.0-1.0)
             - 'text_fallback_rate': Rate of text selector fallbacks (0.0-1.0)
             - 'visual_fallback_rate': Rate of visual selector fallbacks (0.0-1.0)
             - 'primary_success_rate': Success rate of primary selectors (0.0-1.0)
@@ -73,6 +82,8 @@ class CascadeMetrics:
         if self.total_attempts == 0:
             return {
                 'avg_position': 0.0,
+                'xpath_success_rate': 1.0,
+                'css_success_rate': 1.0,
                 'text_fallback_rate': 0.0,
                 'visual_fallback_rate': 0.0,
                 'primary_success_rate': 1.0,
@@ -80,9 +91,12 @@ class CascadeMetrics:
             }
         
         total_successes = self.primary_successes + self.fallback_successes
+        total_primary_selectors = self.xpath_successes + self.css_successes
         
         return {
             'avg_position': self.position_sum / max(1, total_successes),
+            'xpath_success_rate': self.xpath_successes / max(1, self.total_attempts),
+            'css_success_rate': self.css_successes / max(1, self.total_attempts),
             'text_fallback_rate': self.text_fallbacks / self.total_attempts,
             'visual_fallback_rate': self.visual_fallbacks / self.total_attempts,
             'primary_success_rate': self.primary_successes / max(1, self.total_attempts),
@@ -94,6 +108,8 @@ class CascadeMetrics:
         self.total_attempts = 0
         self.primary_successes = 0
         self.fallback_successes = 0
+        self.xpath_successes = 0
+        self.css_successes = 0
         self.text_fallbacks = 0
         self.visual_fallbacks = 0
         self.position_sum = 0.0
@@ -102,6 +118,8 @@ class CascadeMetrics:
     def __repr__(self) -> str:
         metrics = self.get_metrics()
         return (f"CascadeMetrics(attempts={self.total_attempts}, "
+                f"xpath={metrics['xpath_success_rate']:.2f}, "
+                f"css={metrics['css_success_rate']:.2f}, "
                 f"primary_success={self.primary_successes}, "
                 f"avg_position={metrics['avg_position']:.2f}, "
                 f"text_fallback={metrics['text_fallback_rate']:.2f})")

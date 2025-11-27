@@ -152,6 +152,8 @@ class BehaviorScaler:
             success_rate: Recent success rate (0.0-1.0)
             cascade_metrics: Optional dict with cascade performance metrics:
                 - 'avg_position': Average cascade position (0.0 = primary, 1.0 = last)
+                - 'xpath_success_rate': Success rate of XPath selectors (0.0-1.0)
+                - 'css_success_rate': Success rate of CSS selectors (0.0-1.0)
                 - 'text_fallback_rate': Rate of falling back to text selectors (0.0-1.0)
                 - 'visual_fallback_rate': Rate of falling back to visual selectors (0.0-1.0)
                 - 'primary_success_rate': Success rate of primary selectors (0.0-1.0)
@@ -171,9 +173,17 @@ class BehaviorScaler:
         
         if cascade_metrics:
             avg_position = cascade_metrics.get('avg_position', 0.0)
+            xpath_success_rate = cascade_metrics.get('xpath_success_rate', 1.0)
+            css_success_rate = cascade_metrics.get('css_success_rate', 1.0)
             text_fallback_rate = cascade_metrics.get('text_fallback_rate', 0.0)
             visual_fallback_rate = cascade_metrics.get('visual_fallback_rate', 0.0)
             primary_success_rate = cascade_metrics.get('primary_success_rate', 1.0)
+            
+            # If XPath/CSS (primary selectors) are failing, that's a strong signal
+            # XPath and CSS are the most reliable - if they fail, site structure changed
+            primary_selector_rate = (xpath_success_rate + css_success_rate) / 2.0
+            if primary_selector_rate < 0.7:  # Less than 70% success on XPath/CSS
+                adjusted_success_rate = success_rate * 0.8  # Penalize significantly
             
             # If we're frequently falling back to text/visual, that's a bad sign
             # Penalize success rate (indicates site changes or blocking)
@@ -181,9 +191,9 @@ class BehaviorScaler:
             if total_fallback_rate > 0.2:  # More than 20% fallbacks
                 adjusted_success_rate = success_rate * (1.0 - total_fallback_rate * 0.4)
             
-            # If primary selectors consistently work, boost success rate
+            # If primary selectors (XPath/CSS) consistently work, boost success rate
             # (indicates stable site structure, no detection)
-            if primary_success_rate > 0.9 and avg_position < 0.1:
+            if primary_selector_rate > 0.9 and avg_position < 0.1:
                 adjusted_success_rate = min(1.0, success_rate * 1.1)
             
             # If average position is high (frequently using fallbacks), penalize
